@@ -3,6 +3,11 @@ const axios = require("axios");
 const cheerio = require("cheerio");
 const https = require("https");
 const fs = require("fs");
+const { time } = require('console');
+
+let win;
+let html;
+let $;
 
 const baseUrl = `https://russianwarship.rip`;
 
@@ -18,12 +23,34 @@ const mkdirIfNotExistsSync = (path) => {
     }
 };
 
-let win;
+const loadMainWindowFromFile = (timeout = 1500) => {
+    try {
+        if (win) {
+            setTimeout(() => {
+                win.loadFile('index.html');
+            }, Number(timeout));
+        }
+    } catch (ex) {
+        console.log(ex);
+    }
+}
 
-function createWindow () {
+const loadmainWindowFromUrl = (resrouce, timeout = 1500) => {
+    try {
+        if (win) {
+            setTimeout(() => {
+                win.loadURL(resrouce);
+            }, Number(timeout));
+        }
+    } catch (ex) {
+        console.log(ex);
+    }
+}
+
+function createWindow() {
     win = new BrowserWindow({
         width: 1280,
-        height: 720,
+        height: 1280,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
@@ -33,22 +60,22 @@ function createWindow () {
         }
     });
 
-    win.webContents.openDevTools();
+    // win.webContents.openDevTools();
 
     Menu.setApplicationMenu(null);
 
     axios.get(`${baseUrl}`)
         .then(response => {
-            const html = response.data;
-            const $ = cheerio.load(html);
+            html = response.data;
+            $ = cheerio.load(html);
 
             mkdirIfNotExistsSync('./styles');
 
-            $('link[rel="stylesheet"]').each(function() {
+            $('link[rel="stylesheet"]').each(function () {
                 const href = $(this).attr('href');
                 const fileName = href.split('/').pop();
 
-                https.get(`${baseUrl}${href}`, (res) => {
+                https.get(`${baseUrl + href}`, (res) => {
                     const filePath = `./styles/${fileName}`;
                     const fileStream = fs.createWriteStream(filePath);
                     res.pipe(fileStream);
@@ -56,7 +83,9 @@ function createWindow () {
                     fileStream.on('finish', () => {
                         fileStream.close();
                         console.log(`Saved file ${fileName}`);
+
                         $(this).attr('href', filePath);
+
                         fs.writeFile('index.html', $.html(), err => {
                             if (err) throw err;
                             console.log('Styles saved!');
@@ -67,7 +96,7 @@ function createWindow () {
 
             mkdirIfNotExistsSync('./images');
 
-            $('img').each(function() {
+            $('img').each(function () {
                 const src = $(this).attr('src');
                 const fileName = src.split('/').pop();
 
@@ -86,14 +115,14 @@ function createWindow () {
             });
 
             const urls = [
-                {url: `${baseUrl}/images/bg.png`, filename: `bg.png`},
-                {url: `${baseUrl}/images/bg-yellow.svg`, filename: `bg-yellow.svg`},
-                {url: `${baseUrl}/images/bg-blue.svg`, filename: `bg-blue.svg`},
-                {url: `${baseUrl}/images/warship.svg`, filename: `warship.svg`},
-                {url: `${baseUrl}/images/tooltip-bg.svg`, filename: `tooltip-bg.svg`},
+                { url: `${baseUrl}/images/bg.png`, filename: `bg.png` },
+                { url: `${baseUrl}/images/bg-yellow.svg`, filename: `bg-yellow.svg` },
+                { url: `${baseUrl}/images/bg-blue.svg`, filename: `bg-blue.svg` },
+                { url: `${baseUrl}/images/warship.svg`, filename: `warship.svg` },
+                { url: `${baseUrl}/images/tooltip-bg.svg`, filename: `tooltip-bg.svg` },
             ];
 
-            urls.forEach((elem, index) => {
+            urls.forEach((elem) => {
                 https.get(elem.url, (res) => {
                     const filePath = `./images/${elem.filename}`;
                     const fileStream = fs.createWriteStream(filePath);
@@ -108,17 +137,17 @@ function createWindow () {
 
             mkdirIfNotExistsSync('./scripts');
 
-            $('script[src]').each(function() {
+            $('script[src]').each(function () {
                 const src = $(this).attr('src');
                 const fileName = src.split('/').pop();
 
-                https.get(`${baseUrl}${src}`, (res) => {
+                https.get(`${baseUrl + src}`, (res) => {
                     const filePath = `./scripts/${fileName}`;
                     const fileStream = fs.createWriteStream(filePath);
                     res.pipe(fileStream);
 
                     $(this).attr('src', filePath);
-                    
+
                     fileStream.on('finish', () => {
                         fileStream.close();
                         console.log(`Saved file ${fileName}`);
@@ -128,7 +157,7 @@ function createWindow () {
 
             mkdirIfNotExistsSync('./fonts');
 
-            $('link[rel="preload"]').each(function() {
+            $('link[rel="preload"]').each(function () {
                 const href = $(this).attr('href');
                 const fileName = href.split('/').pop();
 
@@ -136,7 +165,7 @@ function createWindow () {
                     const filePath = `./fonts/${fileName}`;
                     const fileStream = fs.createWriteStream(filePath);
                     res.pipe(fileStream);
-                    
+
                     $(this).attr('href', filePath);
 
                     fileStream.on('finish', () => {
@@ -151,19 +180,18 @@ function createWindow () {
                 console.log('HTML saved!');
             });
         })
+        .then(() => {
+            win.loadFile('load.html');
+            loadmainWindowFromUrl(`${baseUrl}`);
+        })
         .catch(error => {
-            console.log(error);
+            win.loadFile('error.html');
+            loadMainWindowFromFile(3000);
         });
-
-    setTimeout(() => {
-        win.loadFile('index.html');
-    }, 1500);
 }
 
 app.whenReady().then(() => {
     createWindow();
-
-
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
